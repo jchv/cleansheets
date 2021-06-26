@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>ECMAScript Parser Demo</title>
+
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+            }
+
+            html {
+                height: 100%;
+                overflow: hidden;
+            }
+
+            body {
+                display: flex;
+                flex-direction: column;
+
+                height: 100%;
+                overflow: hidden;
+            }
+
+            .coderow {
+                display: flex;
+                flex-direction: row;
+                flex: 1;
+                width: 100%;
+            }
+
+            #input {
+                flex: 4;
+            }
+
+            #output {
+                flex: 3;
+            }
+
+            @media only screen and (max-width: 600px) {
+                .coderow {
+                    flex-direction: column;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="coderow">
+            <textarea id="input"></textarea>
+            <textarea id="output" readonly="true"></textarea>
+        </div>
+        <div id="success" style="color: green"></div>
+        <div id="error" style="color: red"></div>
+        <script src="wasm_exec.js"></script>
+        <script>
+        (function() {
+            // The Go binary will call parserLoaded to pass us the parser.
+            let parseES = () => {};
+            window["parserLoaded"] = function(parser) {
+                outputEl.value = "[Parser loaded, going to parse soon...]";
+
+                parseES = parser;
+                runParseDebounced();
+            }
+
+            // These elements make up the user interface.
+            const inputEl = document.getElementById("input");
+            const outputEl = document.getElementById("output");
+            const successEl = document.getElementById("success");
+            const errorEl = document.getElementById("error");
+
+            inputEl.value = `/* # ECMAScript Parser Demo
+ *
+ * This demo is intended to demonstrate the parsing capabilities of
+ * the ECMAScript parser. Please keep in mind that performance and
+ * memory usage can be significantly worse when running under WASM.
+ */
+
+console.log("Hello, world.");`;
+
+            // Simple debounce function, based on Joshua Comeau's snippet.
+            // https://www.joshwcomeau.com/snippets/javascript/debounce/
+            function debounce(callback, wait) {
+                let timeoutId;
+                return (...args) => {
+                    window.clearTimeout(timeoutId);
+                    timeoutId = window.setTimeout(() => { callback(...args); }, wait);
+                };
+            }
+
+            // Runs the parser and displays the result in the DOM.
+            function runParse() {
+                const input = inputEl.value;
+
+                const start = performance.now();
+                const { error, result } = parseES(input);
+                const after = performance.now();
+
+                if (error) {
+                    outputEl.value = "[Error]";
+                    successEl.innerText = "";
+                    errorEl.innerText = error;
+                } else if (result) {
+                    outputEl.value = result;
+                    successEl.innerText = `Completed in ${after - start}ms`;
+                    errorEl.innerText = "";
+                }
+            }
+
+            const runParseDebounced = debounce(runParse, 500);
+
+            inputEl.addEventListener("input", runParseDebounced);
+            outputEl.value = "[Loading bundle...]";
+
+            const go = new Go();
+
+            go.exit = (code) => {
+                errorEl.innerText = `WASM bundle unexpectedly exited! (exit code ${code}) - check console for more details`;
+            };
+
+            WebAssembly.instantiateStreaming(fetch("parser.wasm"), go.importObject)
+                .then(result => {
+                    outputEl.value = "[Starting runtime...]";
+                    go.run(result.instance);
+                }).catch(err => {
+                    outputEl.value = "[Error]";
+                    errorEl.innerText = `An error occurred while loading the WASM bundle: ${err}`;
+                });
+        })();
+        </script>
+    </body>
+</html>
