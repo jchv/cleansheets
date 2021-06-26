@@ -34,7 +34,7 @@ func (p *Parser) parseStatement() ast.Node {
 		lexer.TokenKeywordVoid, lexer.TokenKeywordTypeOf, lexer.TokenPunctuatorPlus,
 		lexer.TokenPunctuatorMinus, lexer.TokenPunctuatorBitNot, lexer.TokenPunctuatorNot,
 		// Primary Expression
-		// Note the absense of: `{`, `function`, and `class`. `async` is
+		// Note the absence of: `{`, `function`, and `class`. `async` is
 		// allowed if not followed by `function` with no newline. `let` is
 		// allowed if not followed by `[`.
 		// Additionally, we handle expressions starting with identifiers further down.
