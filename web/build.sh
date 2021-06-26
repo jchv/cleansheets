@@ -2,7 +2,7 @@
 set -e
 
 mkdir -p ./dist
-cp ./web/index.html ../dist
+cp ./web/index.html ./dist
 
 # Parser demo
 mkdir -p ./dist/parser
