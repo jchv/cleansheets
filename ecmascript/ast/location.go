@@ -30,17 +30,14 @@ func (l *Location) String() string {
 // String returns a string representation of the location span.
 func (l *Span) String() string {
 	a, b := l.Start, l.End
-	if a.URI == b.URI {
-		if a.Row == b.Row {
-			if a.Column == b.Column {
-				return fmt.Sprintf("%s:%d:%d", a.URI, a.Row, a.Column)
-			} else {
-				return fmt.Sprintf("%s:%d:%d-%d", a.URI, a.Row, a.Column, b.Column)
-			}
-		} else {
-			return fmt.Sprintf("%s:%d:%d-%d-%d", a.URI, a.Row, a.Column, b.Row, b.Column)
-		}
-	} else {
+	if a.URI != b.URI {
 		return fmt.Sprintf("%s:%d:%d-%s-%d-%d", a.URI, a.Row, a.Column, b.URI, b.Row, b.Column)
 	}
+	if a.Row != b.Row {
+		return fmt.Sprintf("%s:%d:%d-%d-%d", a.URI, a.Row, a.Column, b.Row, b.Column)
+	}
+	if a.Column != b.Column {
+		return fmt.Sprintf("%s:%d:%d-%d", a.URI, a.Row, a.Column, b.Column)
+	}
+	return fmt.Sprintf("%s:%d:%d", a.URI, a.Row, a.Column)
 }
