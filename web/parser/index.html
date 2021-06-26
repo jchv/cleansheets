@@ -121,6 +121,15 @@ console.log("Hello, world.");`;
                 errorEl.innerText = `WASM bundle unexpectedly exited! (exit code ${code}) - check console for more details`;
             };
 
+            // Polyfill for browsers who can't be assed to support APIs from as
+            // recent as 2017. (Apple shouldn't be allowed to make browsers.)
+            if (!WebAssembly.instantiateStreaming) {
+                WebAssembly.instantiateStreaming = async (resp, importObject) => {
+                    const source = await (await resp).arrayBuffer();
+                    return await WebAssembly.instantiate(source, importObject);
+                };
+            }
+
             WebAssembly.instantiateStreaming(fetch("parser.wasm"), go.importObject)
                 .then(result => {
                     outputEl.value = "[Starting runtime...]";
