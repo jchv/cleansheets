@@ -388,15 +388,12 @@ func (t Token) StringConstant() string {
 // NumberConstant returns the parsed value for a numeric constant.
 func (t Token) NumberConstant() float64 {
 	// TODO: lexer should be parsing numbers accurately
-	v, err := strconv.ParseFloat(t.Literal, 64)
-	if err == nil {
+	if v, err := strconv.ParseFloat(t.Literal, 64); err == nil {
 		return v
-	} else {
-		v, err := strconv.ParseInt(t.Literal, 0, 64)
-		if err == nil {
-			return float64(v)
-		} else {
-			panic(err)
-		}
 	}
+	v, err := strconv.ParseInt(t.Literal, 0, 64)
+	if err != nil {
+		panic(err)
+	}
+	return float64(v)
 }
