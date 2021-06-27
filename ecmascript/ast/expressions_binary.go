@@ -52,7 +52,7 @@ const (
 	// ancestry.
 	BinaryInstanceOfOp
 
-	// BinaryIn (in) is the operator for checking property existence.
+	// BinaryInOp (in) is the operator for checking property existence.
 	BinaryInOp
 
 	// BinaryEqualOp (==) is the operator for checking value equality.

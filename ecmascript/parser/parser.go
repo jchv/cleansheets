@@ -8,14 +8,21 @@ import (
 	"github.com/jchv/cleansheets/ecmascript/lexer"
 )
 
+// ParseMode specifies what mode to use when parsing the ECMAScript code.
 type ParseMode int
 
 const (
+	// ScriptMode parses the ECMAScript code as a script.
 	ScriptMode ParseMode = iota
+
+	// ModuleMode parses the ECMAScript code as a module.
 	ModuleMode
+
+	// ExpressionMode parses the ECMAScript code as an expression.
 	ExpressionMode
 )
 
+// ParseOptions are options that adjust how ECMAScript code should be parsed.
 type ParseOptions struct {
 	Mode ParseMode
 }
@@ -26,12 +33,12 @@ type Parser struct {
 	ctx parseContext
 }
 
-// NewParser creates a new lexer.
+// NewParser creates a new parser.
 func NewParser(l *lexer.Lexer) *Parser {
 	return &Parser{s: NewScanner(l)}
 }
 
-// Parse parses.
+// Parse parses ECMAScript code.
 func (p *Parser) Parse(opt ParseOptions) (n ast.Node, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -87,6 +94,8 @@ func (p *Parser) forceIdent(t lexer.Token, err string) string {
 	return t.Literal
 }
 
+// expectSemicolon expects either a semicolon, or an eligible newline for
+// semicolon insertion.
 func (p *Parser) expectSemicolon() {
 	t := p.s.PeekAt(0)
 
@@ -106,7 +115,7 @@ type spannedNode interface {
 	SetEnd(ast.Location)
 }
 
-// setStart sets the start of a node.
+// setStart sets the start of a node to the current location.
 func (p *Parser) setStart(s spannedNode) {
 	s.SetStart(p.s.Location())
 }

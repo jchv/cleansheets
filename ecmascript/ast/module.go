@@ -1,6 +1,6 @@
 package ast
 
-// ModuleNode is the AST node for a module.
+// ModuleNode is the node for an ECMAScript module.
 type ModuleNode struct {
 	BaseNode
 	Body []Node
@@ -53,18 +53,22 @@ type ImportDeclNode struct {
 	Module string
 }
 
+// ESTree returns the corresponding ESTree representation for this node.
 func (n ImportDeclNode) ESTree() interface{} {
 	panic("unimplemented")
 }
 
+// ImportDefaultBinding contains the default import identifier.
 type ImportDefaultBinding struct {
 	Identifier string
 }
 
+// NameSpaceImport contains the namespace import identifier.
 type NameSpaceImport struct {
 	Identifier string
 }
 
+// NamedImport contains an individual named import binding.
 type NamedImport struct {
 	Identifier string
 	AsBinding  string

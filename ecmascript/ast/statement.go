@@ -127,6 +127,7 @@ func (n VariableDeclarator) ESTree() interface{} {
 	}
 }
 
+// BindingPattern holds an individual binding pattern.
 type BindingPattern struct {
 	// One and only one of Identifier, ObjectPattern, ArrayPattern must be set.
 	// - Identifier: var x = y;

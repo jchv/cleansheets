@@ -22,6 +22,7 @@ func NewScanner(l *lexer.Lexer) *Scanner {
 	return &Scanner{l: l}
 }
 
+// Location returns the current source code location.
 func (s *Scanner) Location() ast.Location {
 	if len(s.loc) > 0 {
 		return s.loc[0]
@@ -29,6 +30,8 @@ func (s *Scanner) Location() ast.Location {
 	return s.l.Location()
 }
 
+// PeekAt peeks into the future of the lexer. Calling this function will lex
+// up to i tokens into the future.
 func (s *Scanner) PeekAt(i int) lexer.Token {
 	for len(s.last) <= i {
 		s.loc = append(s.loc, s.Location())
@@ -37,10 +40,12 @@ func (s *Scanner) PeekAt(i int) lexer.Token {
 	return s.last[i]
 }
 
+// PeekLen returns how far we are peeked into the future.
 func (s *Scanner) PeekLen() int {
 	return len(s.last)
 }
 
+// Scan returns the next lexical token.
 func (s *Scanner) Scan() lexer.Token {
 	if len(s.last) > 0 {
 		t := s.last[0]
@@ -51,6 +56,8 @@ func (s *Scanner) Scan() lexer.Token {
 	return s.l.Lex()
 }
 
+// ReScan relexes the last token as a regular expression. Panics if we are
+// currently peeked into the future, since ReScan changes the future.
 func (s *Scanner) ReScan() lexer.ReToken {
 	if len(s.last) > 0 {
 		panic("internal error")
@@ -58,7 +65,7 @@ func (s *Scanner) ReScan() lexer.ReToken {
 	return s.l.ReLex()
 }
 
-// ScanExpect panics if the token is not of the expected type.
+// ScanExpect scans and panics if the token is not of the expected type.
 func (s *Scanner) ScanExpect(typ lexer.TokenType, err string) lexer.Token {
 	t := s.Scan()
 	if t.Type != typ {
@@ -71,7 +78,7 @@ func (s *Scanner) ScanExpect(typ lexer.TokenType, err string) lexer.Token {
 	return t
 }
 
-// Expect panics if the token is not of the expected type.
+// SyntaxError panics with a syntax error with the given string.
 func (s *Scanner) SyntaxError(err string) {
 	panic(&errs.SyntaxError{
 		Location: s.Location(),

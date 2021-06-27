@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/url"
 
@@ -13,6 +12,7 @@ import (
 // EOFRune is returned when the scanner hits an EOF error.
 const EOFRune = rune(-1)
 
+// Scanner provides additional logic on top of a RuneScanner.
 type Scanner struct {
 	r io.RuneScanner
 
@@ -22,6 +22,7 @@ type Scanner struct {
 	eof bool
 }
 
+// NewScanner creates a new scanner for the given RuneScanner and URL.
 func NewScanner(r io.RuneScanner, uri *url.URL) *Scanner {
 	return &Scanner{
 		r:   r,
@@ -31,6 +32,7 @@ func NewScanner(r io.RuneScanner, uri *url.URL) *Scanner {
 	}
 }
 
+// Location returns the current source code location.
 func (s *Scanner) Location() ast.Location {
 	column := s.col
 
@@ -45,6 +47,7 @@ func (s *Scanner) Location() ast.Location {
 	}
 }
 
+// Read reads a rune and returns it. On EOF, EOFRune is returned.
 func (s *Scanner) Read() rune {
 	r, _, err := s.r.ReadRune()
 
@@ -82,6 +85,8 @@ func (s *Scanner) Read() rune {
 	return r
 }
 
+// Unread unreads a rune. If we are at EOF, this will not call the underlying
+// RuneReader, so it is safe to unread at EOF.
 func (s *Scanner) Unread() {
 	if !s.eof {
 		err := s.r.UnreadRune()
@@ -102,16 +107,5 @@ func (s *Scanner) Unread() {
 		s.row--
 	} else {
 		s.col--
-	}
-}
-
-func (s *Scanner) Expect(expect rune) {
-	actual := s.Read()
-
-	if expect != actual {
-		panic(&errs.SyntaxError{
-			Location: s.Location(),
-			Err:      fmt.Errorf("expected %q, got %q", expect, actual),
-		})
 	}
 }

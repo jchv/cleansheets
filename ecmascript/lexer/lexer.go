@@ -23,6 +23,7 @@ type Lexer struct {
 	newLine   bool
 }
 
+// Location returns the current source location of the lexer.
 func (l *Lexer) Location() ast.Location {
 	return l.s.Location()
 }
