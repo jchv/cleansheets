@@ -212,17 +212,17 @@ type ReToken struct {
 
 // String implements the Stringer interface.
 func (t Token) String() string {
-	if t.Literal == "" {
-		if t.NewLine {
-			return fmt.Sprintf("{ Type: %s, NewLine: true }", t.Type)
-		} else {
-			return fmt.Sprintf("{ Type: %s }", t.Type)
-		}
-	}
-	if t.NewLine {
+	switch {
+	case t.Literal != "" && t.NewLine:
 		return fmt.Sprintf("{ Type: %s, Literal: %q, NewLine: true }", t.Type, t.Literal)
-	} else {
+	case t.Literal != "" && !t.NewLine:
 		return fmt.Sprintf("{ Type: %s, Literal: %q }", t.Type, t.Literal)
+	case t.Literal == "" && t.NewLine:
+		return fmt.Sprintf("{ Type: %s, NewLine: true }", t.Type)
+	case t.Literal == "" && !t.NewLine:
+		return fmt.Sprintf("{ Type: %s }", t.Type)
+	default:
+		panic("unreachable")
 	}
 }
 
