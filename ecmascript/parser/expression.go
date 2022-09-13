@@ -339,9 +339,15 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 	// Handle single-parameter bare parameter list.
 	if i, ok := n.(ast.Identifier); ok && p.s.PeekAt(0).Type == lexer.TokenPunctuatorFatArrow {
 		p.s.ScanExpect(lexer.TokenPunctuatorFatArrow, "expected `=>` operator")
+		var body ast.Node
+		if p.s.PeekAt(0).Type == lexer.TokenPunctuatorOpenBrace {
+			body = p.parseBlock()
+		} else {
+			body = p.parseExpression(exprOrderConditional, 0)
+		}
 		m := ast.FunctionExpression{
 			Params: ast.FormalParameters{Parameters: []ast.BindingElement{{Value: ast.BindingPattern{Identifier: i.Name}}}},
-			Body:   p.parseBlock(),
+			Body:   body,
 			Arrow:  true,
 		}
 		m.SetStart(s)
