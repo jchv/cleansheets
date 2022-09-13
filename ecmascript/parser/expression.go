@@ -135,7 +135,58 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 	case lexer.TokenKeywordThis:
 		n = ast.ThisExpression{}
 	case lexer.TokenIdentifier:
-		n = ast.Identifier{Name: t.Literal}
+		if t.Literal == "async" {
+			peek := p.s.PeekAt(0)
+			ident := p.ctx.keywordToIdentifier(peek, true)
+			if peek.Type == lexer.TokenKeywordFunction {
+				// Async function expression
+				p.s.Scan()
+				n = p.parseFunctionExpressionTail(s, false)
+			} else if ident.Type == lexer.TokenIdentifier {
+				// Async arrow function with bare parameter
+				p.s.Scan()
+				p.s.ScanExpect(lexer.TokenPunctuatorFatArrow, "expected '=>'")
+				return ast.FunctionExpression{
+					Params: ast.FormalParameters{Parameters: []ast.BindingElement{{Value: ast.BindingPattern{Identifier: ident.Literal}}}},
+					Body:   p.parseBlockOrShorthand(),
+					Arrow:  true,
+					Async:  true,
+				}
+			} else if peek.Type == lexer.TokenPunctuatorOpenParen {
+				// Async arrow function with parameter list
+				// OR
+				// Call to function named "async"
+				p.s.Scan()
+				inner := p.parseExpression(exprOrderComma, exprFlagMaybeArrow)
+				p.s.ScanExpect(lexer.TokenPunctuatorCloseParen, "expected `)` operator")
+				if p.s.PeekAt(0).Type == lexer.TokenPunctuatorFatArrow {
+					// This was an arrow function after all. Fix up the parenthesized
+					// expression to be a parameter list.
+					p.s.ScanExpect(lexer.TokenPunctuatorFatArrow, "expected `=>` operator")
+					params := p.convertExprToArrowParams(inner)
+					m := ast.FunctionExpression{
+						Params: params,
+						Body:   p.parseBlockOrShorthand(),
+						Arrow:  true,
+						Async:  true,
+					}
+					m.SetStart(s)
+					m.SetEnd(p.s.Location())
+					n = m
+				} else {
+					// This was a call to a function named "async"
+					n = ast.CallExpression{
+						Callee:    ast.Identifier{Name: t.Literal},
+						Arguments: p.convertExprToCallParams(inner),
+					}
+				}
+			} else {
+				// Async as a non-reserved identifier
+				n = ast.Identifier{Name: t.Literal}
+			}
+		} else {
+			n = ast.Identifier{Name: t.Literal}
+		}
 	case lexer.TokenKeywordNull:
 		n = ast.NullLiteral{}
 	case lexer.TokenKeywordTrue:
@@ -151,26 +202,7 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 	case lexer.TokenPunctuatorOpenBrace:
 		n = p.parseObjectTail(s, flags&exprFlagMaybeArrow)
 	case lexer.TokenKeywordFunction:
-		t = p.ctx.keywordToIdentifier(p.s.Scan(), false)
-		name := ""
-		if t.Type == lexer.TokenIdentifier {
-			name = t.Literal
-			t = p.s.Scan()
-		}
-		// TODO: generator support
-		if t.Type != lexer.TokenPunctuatorOpenParen {
-			p.s.SyntaxError("expected parameter list following function expression head")
-		}
-		params := p.parseParametersTail()
-		body := p.parseBlock()
-		m := ast.FunctionExpression{
-			ID:     name,
-			Params: params,
-			Body:   body,
-		}
-		m.SetStart(s)
-		m.SetEnd(p.s.Location())
-		n = m
+		n = p.parseFunctionExpressionTail(s, false)
 	case lexer.TokenKeywordNew:
 		ctor := p.parseExpression(exprOrderMemberExpr, flags)
 		m := ast.NewExpression{
@@ -182,8 +214,6 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 		m.SetStart(s)
 		m.SetEnd(p.s.Location())
 		n = m
-	case lexer.TokenKeywordAsync:
-		panic("unimplemented: async function/generator expression")
 	case lexer.TokenKeywordClass:
 		panic("unimplemented: class expression")
 	case lexer.TokenLiteralRegExp:
@@ -208,114 +238,10 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 			// This was an arrow function after all. Fix up the parenthesized
 			// expression to be a parameter list.
 			p.s.ScanExpect(lexer.TokenPunctuatorFatArrow, "expected `=>` operator")
-			params := ast.FormalParameters{}
-
-			convarg := func(n ast.Node, params *ast.FormalParameters) {
-				switch t := n.(type) {
-				case ast.Identifier:
-					params.Parameters = append(params.Parameters, ast.BindingElement{
-						Value: ast.BindingPattern{Identifier: t.Name},
-					})
-					return
-
-				case ast.AssignmentExpression:
-					left, ok := t.Left.(ast.Identifier)
-					if !ok {
-						p.s.SyntaxError("expected identifier in argument list")
-					}
-					name := left.Name
-					params.Parameters = append(params.Parameters, ast.BindingElement{
-						Value: ast.BindingPattern{Identifier: name},
-						Init:  t.Right,
-					})
-					return
-
-				case ast.ArrayExpression:
-					pat := ast.ArrayBindingPattern{}
-					for _, e := range t.Elements {
-						elem := ast.BindingElement{}
-						switch e := e.(type) {
-						case nil:
-							break
-
-						case ast.Identifier:
-							elem.Value = ast.BindingPattern{Identifier: e.Name}
-
-						case ast.AssignmentExpression:
-							left, ok := e.Left.(ast.Identifier)
-							if !ok {
-								p.s.SyntaxError("expected identifier in argument list")
-							}
-							name := left.Name
-							elem = ast.BindingElement{Value: ast.BindingPattern{Identifier: name}, Init: e.Right}
-
-						case ast.TemporalArrayRestElement:
-							pat.RestElement = e.BindingPattern
-							params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ArrayPattern: &pat}})
-							return
-
-						default:
-							p.s.SyntaxError(fmt.Sprintf("unexpected production in array destructuring: %T", e))
-						}
-						pat.Elements = append(pat.Elements, elem)
-					}
-					params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ArrayPattern: &pat}})
-					return
-
-				case ast.ObjectExpression:
-					pat := ast.ObjectBindingPattern{}
-					for _, prop := range t.Properties {
-						if rest, ok := prop.Key.(ast.TemporalObjectRestElement); ok {
-							pat.RestElement = rest.Identifier
-							break
-						}
-						key, ok := prop.Key.(ast.Identifier)
-						if !ok {
-							p.s.SyntaxError("computed value not allowed in function parameters")
-						}
-						binding := ast.BindingProperty{
-							PropertyName: key.Name,
-						}
-						if i, ok := prop.Value.(ast.Identifier); ok {
-							binding.Value.Identifier = i.Name
-						}
-						pat.Properties = append(pat.Properties, binding)
-					}
-					params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ObjectPattern: &pat}})
-					return
-
-				case ast.TemporalFloatingRestElement:
-					params.RestParameter = t.Identifier
-					return
-
-				default:
-					p.s.SyntaxError(fmt.Sprintf("unexpected production %T in arrow function parameter list", n))
-				}
-			}
-
-			switch t := inner.(type) {
-			case ast.TemporalEmptyArrowHead:
-				break
-
-			case ast.SequenceExpression:
-				for _, e := range t.Expressions {
-					convarg(e, &params)
-				}
-
-			default:
-				convarg(t, &params)
-			}
-
-			var body ast.Node
-			if p.s.PeekAt(0).Type == lexer.TokenPunctuatorOpenBrace {
-				body = p.parseBlock()
-			} else {
-				body = p.parseExpression(exprOrderConditional, 0)
-			}
-
+			params := p.convertExprToArrowParams(inner)
 			m := ast.FunctionExpression{
 				Params: params,
-				Body:   body,
+				Body:   p.parseBlockOrShorthand(),
 				Arrow:  true,
 			}
 			m.SetStart(s)
@@ -729,6 +655,132 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 	return n
 }
 
+func (p *Parser) convertExprToArrowParams(inner ast.Node) ast.FormalParameters {
+	params := ast.FormalParameters{}
+
+	convarg := func(n ast.Node, params *ast.FormalParameters) {
+		switch t := n.(type) {
+		case ast.Identifier:
+			params.Parameters = append(params.Parameters, ast.BindingElement{
+				Value: ast.BindingPattern{Identifier: t.Name},
+			})
+			return
+
+		case ast.AssignmentExpression:
+			left, ok := t.Left.(ast.Identifier)
+			if !ok {
+				p.s.SyntaxError("expected identifier in argument list")
+			}
+			name := left.Name
+			params.Parameters = append(params.Parameters, ast.BindingElement{
+				Value: ast.BindingPattern{Identifier: name},
+				Init:  t.Right,
+			})
+			return
+
+		case ast.ArrayExpression:
+			pat := ast.ArrayBindingPattern{}
+			for _, e := range t.Elements {
+				elem := ast.BindingElement{}
+				switch e := e.(type) {
+				case nil:
+					break
+
+				case ast.Identifier:
+					elem.Value = ast.BindingPattern{Identifier: e.Name}
+
+				case ast.AssignmentExpression:
+					left, ok := e.Left.(ast.Identifier)
+					if !ok {
+						p.s.SyntaxError("expected identifier in argument list")
+					}
+					name := left.Name
+					elem = ast.BindingElement{Value: ast.BindingPattern{Identifier: name}, Init: e.Right}
+
+				case ast.TemporalArrayRestElement:
+					pat.RestElement = e.BindingPattern
+					params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ArrayPattern: &pat}})
+					return
+
+				default:
+					p.s.SyntaxError(fmt.Sprintf("unexpected production in array destructuring: %T", e))
+				}
+				pat.Elements = append(pat.Elements, elem)
+			}
+			params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ArrayPattern: &pat}})
+			return
+
+		case ast.ObjectExpression:
+			pat := ast.ObjectBindingPattern{}
+			for _, prop := range t.Properties {
+				if rest, ok := prop.Key.(ast.TemporalObjectRestElement); ok {
+					pat.RestElement = rest.Identifier
+					break
+				}
+				binding := ast.BindingProperty{}
+				fmt.Printf("prop: %#v\n", prop)
+				if key, ok := prop.Key.(ast.Identifier); ok {
+					binding.PropertyName = key.Name
+				}
+				switch key := prop.Value.(type) {
+				case ast.Identifier:
+					binding.Value.Identifier = key.Name
+
+				case ast.AssignmentExpression:
+					left, ok := key.Left.(ast.Identifier)
+					if !ok {
+						p.s.SyntaxError("expected identifier in argument list")
+					}
+					binding.Value.Identifier = left.Name
+					binding.Init = key.Right
+
+				case nil:
+					break
+
+				default:
+					p.s.SyntaxError(fmt.Sprintf("unexpected production in object destructuring: %T", key))
+				}
+				if prop.DestructureInit != nil {
+					binding.Init = prop.DestructureInit
+				}
+				pat.Properties = append(pat.Properties, binding)
+			}
+			params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ObjectPattern: &pat}})
+			return
+
+		case ast.TemporalFloatingRestElement:
+			params.RestParameter = t.Identifier
+			return
+
+		default:
+			p.s.SyntaxError(fmt.Sprintf("unexpected production %T in arrow function parameter list", n))
+		}
+	}
+
+	switch t := inner.(type) {
+	case ast.TemporalEmptyArrowHead:
+		break
+
+	case ast.SequenceExpression:
+		for _, e := range t.Expressions {
+			convarg(e, &params)
+		}
+
+	default:
+		convarg(t, &params)
+	}
+
+	return params
+}
+
+func (p *Parser) convertExprToCallParams(inner ast.Node) []ast.Node {
+	if args, ok := inner.(ast.SequenceExpression); ok {
+		return args.Expressions
+	} else {
+		return []ast.Node{inner}
+	}
+}
+
 // Parses an array assuming a `[` was already consumed.
 func (p *Parser) parseArrayTail(start ast.Location, flags exprFlags) ast.Node {
 	n := ast.ArrayExpression{}
@@ -786,6 +838,13 @@ func (p *Parser) parseObjectTail(start ast.Location, flags exprFlags) ast.Node {
 		// comma or close brace could also end the property key. Finally, when
 		// using method shorthand, an open paren can also end the key.
 		t := p.s.PeekAt(0).Type
+
+		// Valid when parsing possible arrow function parameters
+		if flags&exprFlagMaybeArrow != 0 &&
+			t == lexer.TokenPunctuatorAssign {
+			return true
+		}
+
 		return t == lexer.TokenPunctuatorColon ||
 			t == lexer.TokenPunctuatorComma ||
 			t == lexer.TokenPunctuatorCloseBrace ||
@@ -930,6 +989,10 @@ func (p *Parser) parseObjectTail(start ast.Location, flags exprFlags) ast.Node {
 			p.s.ScanExpect(lexer.TokenPunctuatorColon, "expected `:`")
 			prop.Value = p.parseExpression(exprOrderAssign, flags)
 
+		case flags&exprFlagMaybeArrow != 0 && peek.Type == lexer.TokenPunctuatorAssign:
+			p.s.ScanExpect(lexer.TokenPunctuatorAssign, "expected '='")
+			prop.DestructureInit = p.parseExpression(exprOrderAssign, flags)
+
 		case peek.Type == lexer.TokenPunctuatorOpenParen:
 			// Method short-hand property
 			ctx := p.ctx
@@ -979,6 +1042,46 @@ func (p *Parser) parseObjectTail(start ast.Location, flags exprFlags) ast.Node {
 		// Comma before next property, or before ending after a trailing comma.
 		p.s.ScanExpect(lexer.TokenPunctuatorComma, "expected `,` or `}`")
 	}
+}
+
+// Parse traditional function expression
+func (p *Parser) parseFunctionExpressionTail(start ast.Location, async bool) ast.FunctionExpression {
+	t := p.ctx.keywordToIdentifier(p.s.Scan(), false)
+	name := ""
+	if t.Type == lexer.TokenIdentifier {
+		name = t.Literal
+		t = p.s.Scan()
+	}
+
+	generator := false
+	if t.Type == lexer.TokenPunctuatorMult {
+		generator = true
+		t = p.s.Scan()
+	}
+
+	if t.Type != lexer.TokenPunctuatorOpenParen {
+		p.s.SyntaxError("expected parameter list following function expression head")
+	}
+
+	params := p.parseParametersTail()
+
+	wasgen := p.ctx.generator
+	p.ctx.generator = true
+	body := p.parseBlock()
+	p.ctx.generator = wasgen
+
+	m := ast.FunctionExpression{
+		ID:        name,
+		Params:    params,
+		Body:      body,
+		Async:     async,
+		Generator: generator,
+	}
+
+	m.SetStart(start)
+	m.SetEnd(p.s.Location())
+
+	return m
 }
 
 // Parses arguments.

@@ -246,7 +246,12 @@ func TestArrowFunctions(t *testing.T) {
 			expected: ast.FunctionExpression{Body: ast.BlockStatement{}, Arrow: true},
 		},
 		{
-			name:  "arrow function with parameter (bare)",
+			name:     "arrow function with no parameters, async",
+			input:    "async () => {}",
+			expected: ast.FunctionExpression{Body: ast.BlockStatement{}, Arrow: true, Async: true},
+		},
+		{
+			name:  "arrow function with parameter bare",
 			input: "x => {}",
 			expected: ast.FunctionExpression{
 				Params: ast.FormalParameters{
@@ -259,8 +264,7 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
-			todo:  true,
-			name:  "arrow function with parameter (bare, async)",
+			name:  "arrow function with parameter bare, async",
 			input: "async x => {}",
 			expected: ast.FunctionExpression{
 				Params: ast.FormalParameters{
@@ -287,7 +291,21 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
-			name:  "arrow function with parameter (parenthesized)",
+			name:  "arrow function with parameter returning parameter, async",
+			input: "async x => x",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+				},
+				Body:  ast.Identifier{Name: "x"},
+				Async: true,
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with parameter parenthesized",
 			input: "(x) => {}",
 			expected: ast.FunctionExpression{
 				Params: ast.FormalParameters{
@@ -296,6 +314,20 @@ func TestArrowFunctions(t *testing.T) {
 					},
 				},
 				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with parameter parenthesized, async",
+			input: "async (x) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Async: true,
 				Arrow: true,
 			},
 		},
@@ -314,6 +346,21 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
+			name:  "arrow function with multiple parameters, async",
+			input: "async (x, y) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+						{Value: ast.BindingPattern{Identifier: "y"}},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Async: true,
+				Arrow: true,
+			},
+		},
+		{
 			name:  "arrow function with rest parameter",
 			input: "(x, ...y) => {}",
 			expected: ast.FunctionExpression{
@@ -324,6 +371,21 @@ func TestArrowFunctions(t *testing.T) {
 					RestParameter: "y",
 				},
 				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with rest parameter, async",
+			input: "async (x, ...y) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+					RestParameter: "y",
+				},
+				Body:  ast.BlockStatement{},
+				Async: true,
 				Arrow: true,
 			},
 		},
@@ -343,6 +405,26 @@ func TestArrowFunctions(t *testing.T) {
 					},
 				},
 				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with default parameter, async",
+			input: "async (x = 1) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{Identifier: "x"},
+							Init: ast.NumberLiteral{
+								Value: 1,
+								Raw:   "1",
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Async: true,
 				Arrow: true,
 			},
 		},
@@ -368,7 +450,6 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
-			todo:  true,
 			name:  "arrow function with object destructuring parameter and default",
 			input: "({x = 1}) => {}",
 			expected: ast.FunctionExpression{
@@ -380,6 +461,36 @@ func TestArrowFunctions(t *testing.T) {
 									Properties: []ast.BindingProperty{
 										{
 											PropertyName: "x",
+											Init: ast.NumberLiteral{
+												Value: 1,
+												Raw:   "1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with object destructuring parameter, renamed with default",
+			input: "({x: y = 1}) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{
+											PropertyName: "x",
+											Value: ast.BindingPattern{
+												Identifier: "y",
+											},
 											Init: ast.NumberLiteral{
 												Value: 1,
 												Raw:   "1",
@@ -418,7 +529,6 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
-			todo:  true,
 			name:  "arrow function with object destructuring parameter and default and rest",
 			input: "({x = 1, ...y}) => {}",
 			expected: ast.FunctionExpression{
@@ -447,7 +557,6 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
-			todo:  true,
 			name:  "arrow function with object destructuring parameter and default and rest and other parameter",
 			input: "({x = 1, ...y}, z) => {}",
 			expected: ast.FunctionExpression{
@@ -481,7 +590,6 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
-			todo:  true,
 			name:  "arrow function with object destructuring parameter and default and rest and other parameter and rest",
 			input: "({x = 1, ...y}, z, ...w) => {}",
 			expected: ast.FunctionExpression{

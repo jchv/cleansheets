@@ -107,6 +107,14 @@ func (p *Parser) parseExpressionStatement() ast.Node {
 	return n
 }
 
+func (p *Parser) parseBlockOrShorthand() ast.Node {
+	if p.s.PeekAt(0).Type == lexer.TokenPunctuatorOpenBrace {
+		return p.parseBlock()
+	} else {
+		return p.parseExpression(exprOrderConditional, 0)
+	}
+}
+
 func (p *Parser) parseBlock() ast.BlockStatement {
 	n := ast.BlockStatement{}
 	p.setStart(&n)

@@ -331,6 +331,11 @@ type Property struct {
 	// init properties, the property is simply set to this value.
 	Value Node
 
+	// DestructureInit is set when parsing a destructuring assignment as a
+	// property. This happpens when an ambiguity forces the parser to parse an
+	// arrow function as an expression.
+	DestructureInit Node
+
 	// Method specifies whether or not this value is using the method shorthand
 	// syntax. Note that this is only true in case of init properties; getter
 	// and setter properties always have this field set to false.
