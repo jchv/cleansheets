@@ -1023,10 +1023,10 @@ func (p *Parser) parseParametersTail() ast.FormalParameters {
 			return n
 
 		case lexer.TokenPunctuatorOpenBracket:
-			b.Value.ArrayPattern = p.parseArrayBindingPattern()
+			b.Value.ArrayPattern = p.parseArrayBindingPatternTail()
 
 		case lexer.TokenPunctuatorOpenBrace:
-			b.Value.ObjectPattern = p.parseObjectBindingPattern()
+			b.Value.ObjectPattern = p.parseObjectBindingPatternTail()
 
 		case lexer.TokenPunctuatorEllipsis:
 			n.RestParameter = p.scanIdent("expected identifier for rest parameter")

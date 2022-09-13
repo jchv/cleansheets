@@ -201,9 +201,12 @@ func (p *Parser) parseVariableDeclaration() ast.VariableDeclarator {
 }
 
 func (p *Parser) parseArrayBindingPattern() *ast.ArrayBindingPattern {
-	n := &ast.ArrayBindingPattern{}
-
 	p.s.ScanExpect(lexer.TokenPunctuatorOpenBracket, "expected array binding pattern")
+	return p.parseArrayBindingPatternTail()
+}
+
+func (p *Parser) parseArrayBindingPatternTail() *ast.ArrayBindingPattern {
+	n := &ast.ArrayBindingPattern{}
 	for {
 		b := ast.BindingElement{}
 		t := p.ctx.keywordToIdentifier(p.s.Scan(), false)
@@ -220,10 +223,10 @@ func (p *Parser) parseArrayBindingPattern() *ast.ArrayBindingPattern {
 			return n
 
 		case lexer.TokenPunctuatorOpenBracket:
-			b.Value.ArrayPattern = p.parseArrayBindingPattern()
+			b.Value.ArrayPattern = p.parseArrayBindingPatternTail()
 
 		case lexer.TokenPunctuatorOpenBrace:
-			b.Value.ObjectPattern = p.parseObjectBindingPattern()
+			b.Value.ObjectPattern = p.parseObjectBindingPatternTail()
 
 		case lexer.TokenPunctuatorEllipsis:
 			t := p.ctx.keywordToIdentifier(p.s.PeekAt(0), false)
@@ -267,9 +270,12 @@ func (p *Parser) parseArrayBindingPattern() *ast.ArrayBindingPattern {
 }
 
 func (p *Parser) parseObjectBindingPattern() *ast.ObjectBindingPattern {
-	n := &ast.ObjectBindingPattern{}
+	p.s.ScanExpect(lexer.TokenPunctuatorOpenBrace, "expected object binding pattern")
+	return p.parseObjectBindingPatternTail()
+}
 
-	p.s.ScanExpect(lexer.TokenPunctuatorOpenBrace, "expected array binding pattern")
+func (p *Parser) parseObjectBindingPatternTail() *ast.ObjectBindingPattern {
+	n := &ast.ObjectBindingPattern{}
 	for {
 		b := ast.BindingProperty{}
 		t := p.ctx.keywordToIdentifier(p.s.Scan(), false)
@@ -298,10 +304,10 @@ func (p *Parser) parseObjectBindingPattern() *ast.ObjectBindingPattern {
 				b.Value.Identifier = t.Literal
 
 			case lexer.TokenPunctuatorOpenBracket:
-				b.Value.ArrayPattern = p.parseArrayBindingPattern()
+				b.Value.ArrayPattern = p.parseArrayBindingPatternTail()
 
 			case lexer.TokenPunctuatorOpenBrace:
-				b.Value.ObjectPattern = p.parseObjectBindingPattern()
+				b.Value.ObjectPattern = p.parseObjectBindingPatternTail()
 
 			default:
 				p.s.SyntaxError(fmt.Sprintf("unexpected token in object binding pattern: %s", p.s.Scan().Source()))
@@ -602,9 +608,9 @@ func (p *Parser) parseCatchParameter() ast.BindingPattern {
 	case lexer.TokenIdentifier:
 		b.Identifier = t.Literal
 	case lexer.TokenPunctuatorOpenBracket:
-		b.ArrayPattern = p.parseArrayBindingPattern()
+		b.ArrayPattern = p.parseArrayBindingPatternTail()
 	case lexer.TokenPunctuatorOpenBrace:
-		b.ObjectPattern = p.parseObjectBindingPattern()
+		b.ObjectPattern = p.parseObjectBindingPatternTail()
 	}
 	return b
 }
