@@ -22,6 +22,10 @@ func (b *BaseNode) SetEnd(l Location) {
 	b.span.End = l
 }
 
+func (b BaseNode) ContainsTemporalNodes() bool {
+	return false
+}
+
 // Span returns the span of source code the node represents.
 func (b BaseNode) Span() Span {
 	return b.span
@@ -38,6 +42,10 @@ type Node interface {
 	// Because Node is an interface, beware that calling ESTree directly on a
 	// nil Node value will cause a panic.
 	ESTree() interface{}
+
+	// ContainsTemporalNodes returns true if the node contains any temporal
+	// children.
+	ContainsTemporalNodes() bool
 
 	isNode()
 }

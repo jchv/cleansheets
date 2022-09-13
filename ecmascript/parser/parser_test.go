@@ -20,9 +20,14 @@ func ident(n string) ast.Identifier {
 	return ast.Identifier{Name: n}
 }
 
-func assertTree(t *testing.T, input interface{}, expected ast.Node, opt ParseOptions) {
+func assertTree(t *testing.T, input interface{}, expected ast.Node, opt ParseOptions, r ...bool) {
 	var result ast.Node
 	var err error
+
+	todo := false
+	if len(r) > 0 {
+		todo = r[0]
+	}
 
 	switch b := input.(type) {
 	case string:
@@ -34,15 +39,25 @@ func assertTree(t *testing.T, input interface{}, expected ast.Node, opt ParseOpt
 	default:
 		t.Fatalf("unsupported input type %t", b)
 	}
-	if err != nil {
+	if err != nil && todo == false {
 		t.Errorf("error parsing code: %v", err)
+		return
+	} else if err != nil && todo == true {
+		t.Logf("todo: %v", err)
 		return
 	}
 
 	ast.ClearSpans(result)
-
 	if diff := cmp.Diff(expected, result, cmpopts.IgnoreUnexported(ast.BaseNode{})); diff != "" {
-		t.Errorf("ast mismatch (-expected +result):\n%s", diff)
+		if todo {
+			t.Logf("todo: ast mismatch (-expected +result):\n%s", diff)
+		} else {
+			t.Errorf("ast mismatch (-expected +result):\n%s", diff)
+		}
+	} else {
+		if todo {
+			t.Error("assertion marked todo passed")
+		}
 	}
 }
 

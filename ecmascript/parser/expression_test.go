@@ -232,3 +232,380 @@ func TestRegexpLiteral(t *testing.T) {
 		})
 	}
 }
+
+func TestArrowFunctions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected ast.FunctionExpression
+		todo     bool
+	}{
+		{
+			name:     "arrow function with no parameters",
+			input:    "() => {}",
+			expected: ast.FunctionExpression{Body: ast.BlockStatement{}, Arrow: true},
+		},
+		{
+			name:  "arrow function with parameter (bare)",
+			input: "x => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with parameter (parenthesized)",
+			input: "(x) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with multiple parameters",
+			input: "(x, y) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+						{Value: ast.BindingPattern{Identifier: "y"}},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with rest parameter",
+			input: "(x, ...y) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+					RestParameter: "y",
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with default parameter",
+			input: "(x = 1) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{Identifier: "x"},
+							Init: ast.NumberLiteral{
+								Value: 1,
+								Raw:   "1",
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with object destructuring parameter",
+			input: "({x}) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{PropertyName: "x"},
+									},
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			todo:  true,
+			name:  "arrow function with object destructuring parameter and default",
+			input: "({x = 1}) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{
+											PropertyName: "x",
+											Init: ast.NumberLiteral{
+												Value: 1,
+												Raw:   "1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with object destructuring parameter and rest",
+			input: "({x, ...y}) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{PropertyName: "x"},
+									},
+									RestElement: "y",
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			todo:  true,
+			name:  "arrow function with object destructuring parameter and default and rest",
+			input: "({x = 1, ...y}) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{
+											PropertyName: "x",
+											Init: ast.NumberLiteral{
+												Value: 1,
+												Raw:   "1",
+											},
+										},
+									},
+									RestElement: "y",
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			todo:  true,
+			name:  "arrow function with object destructuring parameter and default and rest and other parameter",
+			input: "({x = 1, ...y}, z) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{
+											PropertyName: "x",
+											Init: ast.NumberLiteral{
+												Value: 1,
+												Raw:   "1",
+											},
+										},
+									},
+									RestElement: "y",
+								},
+							},
+						},
+						{
+							Value: ast.BindingPattern{
+								Identifier: "z",
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			todo:  true,
+			name:  "arrow function with object destructuring parameter and default and rest and other parameter and rest",
+			input: "({x = 1, ...y}, z, ...w) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ObjectPattern: &ast.ObjectBindingPattern{
+									Properties: []ast.BindingProperty{
+										{
+											PropertyName: "x",
+											Init: ast.NumberLiteral{
+												Value: 1,
+												Raw:   "1",
+											},
+										},
+									},
+									RestElement: "y",
+								},
+							},
+						},
+						{
+							Value: ast.BindingPattern{
+								Identifier: "z",
+							},
+						},
+					},
+					RestParameter: "w",
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with array destructuring parameter",
+			input: "([x]) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ArrayPattern: &ast.ArrayBindingPattern{
+									Elements: []ast.BindingElement{
+										{
+											Value: ast.BindingPattern{
+												Identifier: "x",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with array destructuring parameter and default",
+			input: "([x = 1]) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ArrayPattern: &ast.ArrayBindingPattern{
+									Elements: []ast.BindingElement{
+										{
+											Value: ast.BindingPattern{
+												Identifier: "x",
+											},
+											Init: ast.NumberLiteral{
+												Value: 1,
+												Raw:   "1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with array destructuring parameter and rest",
+			input: "([x, ...y]) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{{
+						Value: ast.BindingPattern{
+							ArrayPattern: &ast.ArrayBindingPattern{
+								Elements: []ast.BindingElement{{
+									Value: ast.BindingPattern{Identifier: "x"},
+								}},
+								RestElement: ast.BindingPattern{Identifier: "y"},
+							},
+						},
+					}},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with array destructuring parameter and elided element",
+			input: "([x, , y]) => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{
+							Value: ast.BindingPattern{
+								ArrayPattern: &ast.ArrayBindingPattern{
+									Elements: []ast.BindingElement{
+										{
+											Value: ast.BindingPattern{
+												Identifier: "x",
+											},
+										},
+										{},
+										{
+											Value: ast.BindingPattern{
+												Identifier: "y",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Arrow: true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assertTree(t, test.input, ast.ModuleNode{
+				Body: []ast.Node{
+					ast.ExpressionStatement{
+						Expression: test.expected,
+					},
+				},
+			}, ParseOptions{Mode: ModuleMode}, test.todo)
+			if test.todo {
+				t.Skip("TODO")
+			}
+		})
+	}
+}

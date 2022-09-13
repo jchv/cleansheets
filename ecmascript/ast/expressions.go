@@ -21,6 +21,17 @@ func (n ArrayExpression) ESTree() interface{} {
 	return e
 }
 
+// ContainsTemporalNodes returns true if the node contains any temporal
+// children.
+func (n ArrayExpression) ContainsTemporalNodes() bool {
+	for _, elem := range n.Elements {
+		if elem.ContainsTemporalNodes() {
+			return true
+		}
+	}
+	return false
+}
+
 // ConditionalExpression is the AST node for a conditional expression
 // statement.
 //
@@ -90,7 +101,7 @@ func (n FormalParameters) ESTree() interface{} {
 	return e
 }
 
-// FunctionExpression stores a traditional function expression.
+// FunctionExpression stores a function expression.
 type FunctionExpression struct {
 	BaseNode
 	ID         string
@@ -99,10 +110,15 @@ type FunctionExpression struct {
 	Generator  bool
 	Expression bool
 	Async      bool
+	Arrow      bool
 }
 
 // ESTree returns the corresponding ESTree representation for this node.
 func (n FunctionExpression) ESTree() interface{} {
+	typ := "FunctionExpression"
+	if n.Arrow {
+		typ = "ArrowFunctionExpression"
+	}
 	return struct {
 		Type       string      `json:"type"`
 		ID         interface{} `json:"id"`
@@ -112,7 +128,7 @@ func (n FunctionExpression) ESTree() interface{} {
 		Expression bool        `json:"expression"`
 		Async      bool        `json:"async"`
 	}{
-		Type:       "FunctionExpression",
+		Type:       typ,
 		ID:         estreeIdent(n.ID),
 		Params:     n.Params.ESTree(),
 		Body:       estree(n.Body),
@@ -371,6 +387,17 @@ func (n ObjectExpression) ESTree() interface{} {
 	return e
 }
 
+// ContainsTemporalNodes returns true if the node contains any temporal
+// children.
+func (n ObjectExpression) ContainsTemporalNodes() bool {
+	for _, prop := range n.Properties {
+		if prop.Key.ContainsTemporalNodes() || prop.Value.ContainsTemporalNodes() {
+			return true
+		}
+	}
+	return false
+}
+
 // SequenceExpression is a node containing expressions separated with the comma
 // operator.
 //
@@ -405,4 +432,15 @@ func (n SequenceExpression) ESTree() interface{} {
 		e.Expressions = append(e.Expressions, estree(expr))
 	}
 	return e
+}
+
+// ContainsTemporalNodes returns true if the node contains any temporal
+// children.
+func (n SequenceExpression) ContainsTemporalNodes() bool {
+	for _, expr := range n.Expressions {
+		if expr.ContainsTemporalNodes() {
+			return true
+		}
+	}
+	return false
 }

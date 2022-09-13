@@ -35,6 +35,7 @@ type exprFlags int
 
 const (
 	exprFlagDisallowIn exprFlags = 1 << iota
+	exprFlagMaybeArrow
 )
 
 // parseExpression parses an expression up to a certain level of operator
@@ -50,6 +51,20 @@ const (
 // operator. Note that flags may or may not propagate to sub-expressions,
 // depending on exactly what kind of sub-expression it is.
 func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
+	if flags&exprFlagMaybeArrow != 0 {
+		switch p.s.PeekAt(0).Type {
+		case lexer.TokenPunctuatorCloseParen:
+			// This is a parameter list, not an expression.
+			return ast.TemporalEmptyArrowHead{}
+		case lexer.TokenPunctuatorEllipsis:
+			// Rest parameter inside of possible arrow function head.
+			p.s.ScanExpect(lexer.TokenPunctuatorEllipsis, "expected `...`")
+			return ast.TemporalFloatingRestElement{
+				Identifier: p.forceScanIdent("unexpected token"),
+			}
+		}
+	}
+
 	var n ast.Node
 	s := p.s.Location()
 	t := p.ctx.keywordToIdentifier(p.s.Scan(), false)
@@ -132,9 +147,9 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 	case lexer.TokenLiteralString:
 		n = ast.StringLiteral{Value: t.StringConstant(), Raw: t.Literal}
 	case lexer.TokenPunctuatorOpenBracket:
-		n = p.parseArrayTail(s)
+		n = p.parseArrayTail(s, flags&exprFlagMaybeArrow)
 	case lexer.TokenPunctuatorOpenBrace:
-		n = p.parseObjectTail(s)
+		n = p.parseObjectTail(s, flags&exprFlagMaybeArrow)
 	case lexer.TokenKeywordFunction:
 		t = p.ctx.keywordToIdentifier(p.s.Scan(), false)
 		name := ""
@@ -183,17 +198,148 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 	case lexer.TokenLiteralTemplate:
 		panic("unimplemented: template literal")
 	case lexer.TokenPunctuatorOpenParen:
-		// TODO: Need to support arrow functions! This is tricky because we
-		// need to accept any production that would be a valid expression OR
-		// argument list, then interpret it after we can peek to see if there
-		// is a => after it or not.
-		m := ast.ParenthesizedExpression{Expression: p.parseExpression(exprOrderComma, 0)}
+		// Tricky: this could be a parenthesized expression, or the parameter
+		// list of an arrow function. To avoid look-ahead, the parser will
+		// parse as an expression where possible, but also allow some invalid
+		// productions, and then it will be fixed up here.
+		inner := p.parseExpression(exprOrderComma, exprFlagMaybeArrow)
 		p.s.ScanExpect(lexer.TokenPunctuatorCloseParen, "expected `)` operator")
-		m.SetStart(s)
-		m.SetEnd(p.s.Location())
-		n = m
+		if p.s.PeekAt(0).Type == lexer.TokenPunctuatorFatArrow {
+			// This was an arrow function after all. Fix up the parenthesized
+			// expression to be a parameter list.
+			p.s.ScanExpect(lexer.TokenPunctuatorFatArrow, "expected `=>` operator")
+			params := ast.FormalParameters{}
+
+			convarg := func(n ast.Node, params *ast.FormalParameters) {
+				switch t := n.(type) {
+				case ast.Identifier:
+					params.Parameters = append(params.Parameters, ast.BindingElement{
+						Value: ast.BindingPattern{Identifier: t.Name},
+					})
+					return
+
+				case ast.AssignmentExpression:
+					left, ok := t.Left.(ast.Identifier)
+					if !ok {
+						p.s.SyntaxError("expected identifier in argument list")
+					}
+					name := left.Name
+					params.Parameters = append(params.Parameters, ast.BindingElement{
+						Value: ast.BindingPattern{Identifier: name},
+						Init:  t.Right,
+					})
+					return
+
+				case ast.ArrayExpression:
+					pat := ast.ArrayBindingPattern{}
+					for _, e := range t.Elements {
+						elem := ast.BindingElement{}
+						switch e := e.(type) {
+						case nil:
+							break
+
+						case ast.Identifier:
+							elem.Value = ast.BindingPattern{Identifier: e.Name}
+
+						case ast.AssignmentExpression:
+							left, ok := e.Left.(ast.Identifier)
+							if !ok {
+								p.s.SyntaxError("expected identifier in argument list")
+							}
+							name := left.Name
+							elem = ast.BindingElement{Value: ast.BindingPattern{Identifier: name}, Init: e.Right}
+
+						case ast.TemporalArrayRestElement:
+							pat.RestElement = e.BindingPattern
+							params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ArrayPattern: &pat}})
+							return
+
+						default:
+							p.s.SyntaxError(fmt.Sprintf("unexpected production in array destructuring: %T", e))
+						}
+						pat.Elements = append(pat.Elements, elem)
+					}
+					params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ArrayPattern: &pat}})
+					return
+
+				case ast.ObjectExpression:
+					pat := ast.ObjectBindingPattern{}
+					for _, prop := range t.Properties {
+						if rest, ok := prop.Key.(ast.TemporalObjectRestElement); ok {
+							pat.RestElement = rest.Identifier
+							break
+						}
+						key, ok := prop.Key.(ast.Identifier)
+						if !ok {
+							p.s.SyntaxError("computed value not allowed in function parameters")
+						}
+						binding := ast.BindingProperty{
+							PropertyName: key.Name,
+						}
+						if i, ok := prop.Value.(ast.Identifier); ok {
+							binding.Value.Identifier = i.Name
+						}
+						pat.Properties = append(pat.Properties, binding)
+					}
+					params.Parameters = append(params.Parameters, ast.BindingElement{Value: ast.BindingPattern{ObjectPattern: &pat}})
+					return
+
+				case ast.TemporalFloatingRestElement:
+					params.RestParameter = t.Identifier
+					return
+
+				default:
+					p.s.SyntaxError(fmt.Sprintf("unexpected production %T in arrow function parameter list", n))
+				}
+			}
+
+			switch t := inner.(type) {
+			case ast.TemporalEmptyArrowHead:
+				break
+
+			case ast.SequenceExpression:
+				for _, e := range t.Expressions {
+					convarg(e, &params)
+				}
+
+			default:
+				convarg(t, &params)
+			}
+
+			m := ast.FunctionExpression{
+				Params: params,
+				Body:   p.parseBlock(),
+				Arrow:  true,
+			}
+			m.SetStart(s)
+			m.SetEnd(p.s.Location())
+			n = m
+		} else {
+			// Was not an arrow. Deal disallowed syntax retroactively.
+			if _, ok := inner.(ast.TemporalEmptyArrowHead); ok || inner.ContainsTemporalNodes() {
+				p.s.SyntaxError("expected `=>` operator")
+			}
+
+			m := ast.ParenthesizedExpression{Expression: inner}
+			m.SetStart(s)
+			m.SetEnd(p.s.Location())
+			n = m
+		}
 	default:
 		invalidprimary()
+	}
+
+	// Handle single-parameter bare parameter list.
+	if i, ok := n.(ast.Identifier); ok && p.s.PeekAt(0).Type == lexer.TokenPunctuatorFatArrow {
+		p.s.ScanExpect(lexer.TokenPunctuatorFatArrow, "expected `=>` operator")
+		m := ast.FunctionExpression{
+			Params: ast.FormalParameters{Parameters: []ast.BindingElement{{Value: ast.BindingPattern{Identifier: i.Name}}}},
+			Body:   p.parseBlock(),
+			Arrow:  true,
+		}
+		m.SetStart(s)
+		m.SetEnd(p.s.Location())
+		return m
 	}
 
 	if order >= exprOrderPrimaryExpr {
@@ -571,7 +717,7 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 }
 
 // Parses an array assuming a `[` was already consumed.
-func (p *Parser) parseArrayTail(start ast.Location) ast.Node {
+func (p *Parser) parseArrayTail(start ast.Location, flags exprFlags) ast.Node {
 	n := ast.ArrayExpression{}
 	n.SetStart(start)
 	defer p.setEnd(&n)
@@ -584,7 +730,26 @@ func (p *Parser) parseArrayTail(start ast.Location) ast.Node {
 		if p.s.PeekAt(0).Type == lexer.TokenPunctuatorCloseBracket {
 			break
 		}
-		n.Elements = append(n.Elements, p.parseExpression(exprOrderAssign, 0))
+		if flags&exprFlagMaybeArrow != 0 && p.s.PeekAt(0).Type == lexer.TokenPunctuatorEllipsis {
+			p.s.ScanExpect(lexer.TokenPunctuatorEllipsis, "expected `...`")
+			rest := ast.TemporalArrayRestElement{}
+			switch p.s.PeekAt(0).Type {
+			case lexer.TokenPunctuatorCloseBracket:
+				p.s.SyntaxError("expected expression, got ']'")
+			case lexer.TokenPunctuatorOpenBracket:
+				rest.ArrayPattern = p.parseArrayBindingPattern()
+			case lexer.TokenPunctuatorOpenBrace:
+				rest.ObjectPattern = p.parseObjectBindingPattern()
+			case lexer.TokenIdentifier:
+				rest.Identifier = p.forceScanIdent("unexpected token")
+			default:
+				p.s.SyntaxError("missing variable name")
+			}
+			n.Elements = append(n.Elements, rest)
+			break
+		} else {
+			n.Elements = append(n.Elements, p.parseExpression(exprOrderAssign, flags))
+		}
 		if p.s.PeekAt(0).Type == lexer.TokenPunctuatorComma {
 			p.s.ScanExpect(lexer.TokenPunctuatorComma, "expected `,`")
 		}
@@ -598,7 +763,7 @@ func (p *Parser) parseArrayTail(start ast.Location) ast.Node {
 }
 
 // Parses an object assuming a `{` was already consumed.
-func (p *Parser) parseObjectTail(start ast.Location) ast.Node {
+func (p *Parser) parseObjectTail(start ast.Location, flags exprFlags) ast.Node {
 	n := ast.ObjectExpression{}
 	n.SetStart(start)
 	defer p.setEnd(&n)
@@ -612,6 +777,19 @@ func (p *Parser) parseObjectTail(start ast.Location) ast.Node {
 			t == lexer.TokenPunctuatorComma ||
 			t == lexer.TokenPunctuatorCloseBrace ||
 			t == lexer.TokenPunctuatorOpenParen
+	}
+
+	parseRest := func() ast.TemporalObjectRestElement {
+		rest := ast.TemporalObjectRestElement{}
+		switch p.s.PeekAt(0).Type {
+		case lexer.TokenPunctuatorCloseBrace:
+			p.s.SyntaxError("expected expression, got '}'")
+		case lexer.TokenIdentifier:
+			rest.Identifier = p.forceScanIdent("unexpected token")
+		default:
+			p.s.SyntaxError("missing variable name")
+		}
+		return rest
 	}
 
 	for {
@@ -666,6 +844,15 @@ func (p *Parser) parseObjectTail(start ast.Location) ast.Node {
 			case lexer.TokenPunctuatorMult:
 				generator = true
 
+			case lexer.TokenPunctuatorEllipsis:
+				// For possible-arrow-function: parse rest binding.
+				if flags&exprFlagMaybeArrow != 0 {
+					n.Properties = append(n.Properties, ast.Property{Key: parseRest()})
+					p.s.ScanExpect(lexer.TokenPunctuatorCloseBrace, "expected `}`")
+					return n
+				}
+
+				fallthrough
 			default:
 				// We don't know what is wrong here.
 				// TODO: better error message heuristics here?
@@ -703,7 +890,7 @@ func (p *Parser) parseObjectTail(start ast.Location) ast.Node {
 		case lexer.TokenPunctuatorOpenBracket:
 			// Computed identifier.
 			prop.Computed = true
-			prop.Key = p.parseExpression(exprOrderComma, 0)
+			prop.Key = p.parseExpression(exprOrderComma, flags)
 			p.s.ScanExpect(lexer.TokenPunctuatorCloseBracket, "expected `]`")
 
 		default:
@@ -728,7 +915,7 @@ func (p *Parser) parseObjectTail(start ast.Location) ast.Node {
 			}
 
 			p.s.ScanExpect(lexer.TokenPunctuatorColon, "expected `:`")
-			prop.Value = p.parseExpression(exprOrderAssign, 0)
+			prop.Value = p.parseExpression(exprOrderAssign, flags)
 
 		case peek.Type == lexer.TokenPunctuatorOpenParen:
 			// Method short-hand property
