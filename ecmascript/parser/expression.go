@@ -306,9 +306,16 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 				convarg(t, &params)
 			}
 
+			var body ast.Node
+			if p.s.PeekAt(0).Type == lexer.TokenPunctuatorOpenBrace {
+				body = p.parseBlock()
+			} else {
+				body = p.parseExpression(exprOrderConditional, 0)
+			}
+
 			m := ast.FunctionExpression{
 				Params: params,
-				Body:   p.parseBlock(),
+				Body:   body,
 				Arrow:  true,
 			}
 			m.SetStart(s)

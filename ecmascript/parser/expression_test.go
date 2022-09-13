@@ -259,6 +259,34 @@ func TestArrowFunctions(t *testing.T) {
 			},
 		},
 		{
+			todo:  true,
+			name:  "arrow function with parameter (bare, async)",
+			input: "async x => {}",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+				},
+				Body:  ast.BlockStatement{},
+				Async: true,
+				Arrow: true,
+			},
+		},
+		{
+			name:  "arrow function with parameter returning parameter",
+			input: "x => x",
+			expected: ast.FunctionExpression{
+				Params: ast.FormalParameters{
+					Parameters: []ast.BindingElement{
+						{Value: ast.BindingPattern{Identifier: "x"}},
+					},
+				},
+				Body:  ast.Identifier{Name: "x"},
+				Arrow: true,
+			},
+		},
+		{
 			name:  "arrow function with parameter (parenthesized)",
 			input: "(x) => {}",
 			expected: ast.FunctionExpression{

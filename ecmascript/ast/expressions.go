@@ -42,18 +42,18 @@ func (n ArrayExpression) ContainsTemporalNodes() bool {
 //
 // For example:
 //
-//     i == 1 ? 0 : 2
+//	i == 1 ? 0 : 2
 //
 // Would be represented as:
 //
-//     ConditionalExpression{
-//         Test: BinaryExpression{
-//             Left: Identifier{Name: "i"},
-//             Right: NumberLiteral{Value: 1, ...},
-//         },
-//         Consequent: NumberLiteral{Value: 0, ...},
-//         Alternate: NumberLiteral{Value: 2, ...},
-//     }
+//	ConditionalExpression{
+//	    Test: BinaryExpression{
+//	        Left: Identifier{Name: "i"},
+//	        Right: NumberLiteral{Value: 1, ...},
+//	    },
+//	    Consequent: NumberLiteral{Value: 0, ...},
+//	    Alternate: NumberLiteral{Value: 2, ...},
+//	}
 type ConditionalExpression struct {
 	BaseNode
 
@@ -106,7 +106,7 @@ type FunctionExpression struct {
 	BaseNode
 	ID         string
 	Params     FormalParameters
-	Body       BlockStatement
+	Body       Node
 	Generator  bool
 	Expression bool
 	Async      bool
@@ -142,13 +142,13 @@ func (n FunctionExpression) ESTree() interface{} {
 //
 // For example:
 //
-//     window
+//	window
 //
 // Would be represented as:
 //
-//     Identifier{
-//         Name: "window",
-//     }
+//	Identifier{
+//	    Name: "window",
+//	}
 type Identifier struct {
 	BaseNode
 	Name string
@@ -403,17 +403,17 @@ func (n ObjectExpression) ContainsTemporalNodes() bool {
 //
 // For example:
 //
-//     1, 2, 3
+//	1, 2, 3
 //
 // Would be represented as:
 //
-//     SequenceExpression{
-// 	       Expressions: []Node{
-//             NumberLiteral{Value: 1, ...},
-//             NumberLiteral{Value: 2, ...},
-//             NumberLiteral{Value: 3, ...},
-//         },
-//     }
+//	    SequenceExpression{
+//		       Expressions: []Node{
+//	            NumberLiteral{Value: 1, ...},
+//	            NumberLiteral{Value: 2, ...},
+//	            NumberLiteral{Value: 3, ...},
+//	        },
+//	    }
 type SequenceExpression struct {
 	BaseNode
 	Expressions []Node
