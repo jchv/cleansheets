@@ -40,6 +40,27 @@
                 flex: 3;
             }
 
+            .statusrow {
+                display: flex;
+                flex-direction: row;
+                width: 100%;
+                flex-shrink: 1;
+            }
+
+            #success {
+                color: green;
+                flex-grow: 1;
+            }
+
+            #error {
+                color: red;
+                flex-grow: 1;
+            }
+
+            #share {
+                flex-shrink: 1;
+            }
+
             @media only screen and (max-width: 600px) {
                 .coderow {
                     flex-direction: column;
@@ -52,8 +73,11 @@
             <textarea id="input"></textarea>
             <textarea id="output" readonly="true"></textarea>
         </div>
-        <div id="success" style="color: green"></div>
-        <div id="error" style="color: red"></div>
+        <div class="statusrow">
+            <div id="success"></div>
+            <div id="error"></div>
+            <button id="share">share</button>
+        </div>
         <script src="wasm_exec.js"></script>
         <script>
         (function() {
@@ -71,6 +95,7 @@
             const outputEl = document.getElementById("output");
             const successEl = document.getElementById("success");
             const errorEl = document.getElementById("error");
+            const shareEl = document.getElementById("share");
 
             inputEl.value = `/* # ECMAScript Parser Demo
  *
@@ -100,13 +125,17 @@ console.log("Hello, world.");`;
                 const after = performance.now();
 
                 if (error) {
-                    outputEl.value = "[Error]";
+                    outputEl.value = "Error: " + error;
                     successEl.innerText = "";
+                    successEl.style.display = "none";
                     errorEl.innerText = error;
+                    errorEl.style.display = "block";
                 } else if (result) {
                     outputEl.value = result;
                     successEl.innerText = `Completed in ${after - start}ms`;
+                    successEl.style.display = "block";
                     errorEl.innerText = "";
+                    errorEl.style.display = "none";
                 }
             }
 
@@ -114,6 +143,29 @@ console.log("Hello, world.");`;
 
             inputEl.addEventListener("input", runParseDebounced);
             outputEl.value = "[Loading bundle...]";
+
+            shareEl.addEventListener("click", () => {
+                const url = new URL(window.location.href);
+                url.searchParams.set("code", inputEl.value);
+                window.location.href = url.href;
+                const input = document.createElement("input");
+                input.value = url.href;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand("copy");
+                document.body.removeChild(input);
+            });
+
+            window.addEventListener("hashchange", () => {
+                const url = new URL(window.location.href);
+                const code = url.searchParams.get("code");
+                if (code) {
+                    inputEl.value = code;
+                    runParseDebounced();
+                }
+            });
+
+            window.dispatchEvent(new Event("hashchange"));
 
             const go = new Go();
 
