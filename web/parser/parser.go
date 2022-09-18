@@ -1,3 +1,4 @@
+//go:build js
 // +build js
 
 package main
@@ -22,9 +23,13 @@ func ParseES(this js.Value, p []js.Value) interface{} {
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}
 	}
-	b, err := json.MarshalIndent(n.ESTree(), "", "  ")
+	w := &strings.Builder{}
+	e := json.NewEncoder(w)
+	e.SetEscapeHTML(false)
+	e.SetIndent("", "  ")
+	err = e.Encode(n.ESTree())
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}
 	}
-	return map[string]interface{}{"result": string(b)}
+	return map[string]interface{}{"result": w.String()}
 }
