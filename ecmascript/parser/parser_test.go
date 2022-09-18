@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"strconv"
@@ -145,6 +146,23 @@ func TestParseLibraries(t *testing.T) {
 		_, err = NewParser(lexer.NewLexer(lexer.NewScanner(r, url))).Parse(ParseOptions{Mode: ScriptMode})
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkParseReact(b *testing.B) {
+	b.StopTimer()
+	data, err := ioutil.ReadFile("testdata/react-v17.0.2.js")
+	if err != nil {
+		b.Fatal(err)
+	}
+	url, _ := url.Parse("file:///testdata/react-v17.0.2.js")
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, err := NewParser(lexer.NewLexer(lexer.NewScanner(bytes.NewReader(data), url))).Parse(ParseOptions{Mode: ScriptMode})
+		if err != nil {
+			b.Fatal(err)
 		}
 	}
 }
