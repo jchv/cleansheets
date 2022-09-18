@@ -1094,8 +1094,16 @@ func (p *Parser) parseArguments() []ast.Node {
 		return n
 	}
 	for {
-		// TODO: spread elements
-		n = append(n, p.parseExpression(exprOrderAssign, 0))
+		spread := false
+		if p.s.PeekAt(0).Type == lexer.TokenPunctuatorEllipsis {
+			p.s.Scan()
+			spread = true
+		}
+		m := p.parseExpression(exprOrderAssign, 0)
+		if spread {
+			m = ast.SpreadElement{Argument: m}
+		}
+		n = append(n, m)
 		if p.s.PeekAt(0).Type == lexer.TokenPunctuatorComma {
 			p.s.ScanExpect(lexer.TokenPunctuatorComma, "expected `,`")
 		}
