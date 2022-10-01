@@ -215,7 +215,16 @@ func (p *Parser) parseExpression(order exprOrder, flags exprFlags) ast.Node {
 		m.SetEnd(p.s.Location())
 		n = m
 	case lexer.TokenKeywordClass:
-		panic("unimplemented: class expression")
+		m := ast.ClassExpression{}
+		if p.s.PeekAt(0).Type == lexer.TokenIdentifier {
+			m.ID = p.scanIdent("expected class name")
+		}
+		if p.s.PeekAt(0).Type == lexer.TokenKeywordExtends {
+			p.s.Scan()
+			m.SuperClass = p.parseExpression(exprOrderMemberExpr, 0)
+		}
+		m.Body = p.parseClassBody()
+		n = m
 	case lexer.TokenLiteralRegExp:
 		m := ast.RegExpLiteral{
 			Raw:     t.Literal,

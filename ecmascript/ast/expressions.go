@@ -449,3 +449,48 @@ func (n SequenceExpression) ContainsTemporalNodes() bool {
 	}
 	return false
 }
+
+// ClassExpression is the AST node that corresponds to an ECMAscript
+// class expression.
+//
+// For example:
+//
+//     class { }
+//
+// Would be represented as:
+//
+//     ClassExpression{
+// 	       ID: "",
+//         SuperClass: "",
+//         Body: ClassBody{},
+//     }
+type ClassExpression struct {
+	BaseNode
+	ID         string
+	SuperClass Node
+	Body       []Node
+}
+
+// ESTree returns the corresponding ESTree representation for this node.
+func (n ClassExpression) ESTree() interface{} {
+	e := struct {
+		Type       string      `json:"type"`
+		ID         interface{} `json:"id"`
+		SuperClass interface{} `json:"params"`
+		Body       struct {
+			Type string        `json:"type"`
+			Body []interface{} `json:"body"`
+		} `json:"body"`
+	}{
+		Type:       "ClassExpression",
+		ID:         estreeIdent(n.ID),
+		SuperClass: estree(n.SuperClass),
+	}
+
+	e.Body.Type = "ClassBody"
+	for _, elem := range n.Body {
+		e.Body.Body = append(e.Body.Body, estree(elem))
+	}
+
+	return e
+}
